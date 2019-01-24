@@ -1,0 +1,11 @@
+_uri=
+_apikey=
+project_id=
+tracker_id=
+status_id=
+priority_id=
+subject=
+description=<FILE>
+category_id=
+custom_field:1=
+custom_field:2=<FILE>

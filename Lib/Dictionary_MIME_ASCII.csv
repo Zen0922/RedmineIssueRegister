@@ -1,0 +1,18 @@
+bmp,image/bmp,0
+doc,application/msword,0
+gif,image/gif,0
+jpe,image/jpeg,0
+jpeg,image/jpeg,0
+jpg,image/jpeg,0
+pdf,application/pdf,0
+png,image/png,0
+tif,image/tiff,0
+tiff,image/tiff,0
+tsv,text/tab-separated-values,1
+txt,text/plain,1
+xbm,image/x-xbitmap,0
+xpm,image/x-xpixmap,0
+zip,application/zip,0
+xls,application/vnd.ms-excel,0
+docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document docx,0
+xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet xlsx,0
