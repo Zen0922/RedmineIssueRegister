@@ -17,6 +17,9 @@ Option Explicit
 '		複数選択肢のカスタムフィールドには対応していません。
 '		
 '	【更新履歴】
+'		2019/01/26	v1.01	HTTPリクエスト用のオブジェクトをMSXML2.XMLHTTP.3.0に変更。
+'							実行後にスクリプトと同じディレクトリにlastResult.txtを出力するように変更。
+'							lastResult.txtは実行結果をそのままテキストに出力します。
 '		2019/01/24	v1.00	初版
 '
 '	【著作】Zen(http://relphe.s4.valueserver.jp/wp/)
@@ -64,6 +67,7 @@ Dim tmpCmd				'アップロード用発行コマンド
 Dim wExec				'ファイルアップロードコマンド結果保管変数
 Dim fileUploadResult	'ファイルアップロードコマンド結果取得変数
 Dim uploadResultText	'アップロード結果テキスト
+Dim errorResultText
 '--------------------------------------------------------------------------------------------------
 '	メインプログラムここから
 '--------------------------------------------------------------------------------------------------
@@ -85,7 +89,7 @@ For Each F In FSO.GetFolder(loadFileDir).Files
 	If Not ( UBound(sysFile) <> -1 Or Left(F.Name, 1) = "_" ) Then
 		'対応拡張子判定
 		If isAsciiMode(getFileType(F.Name)) = "" Then
-			WScript.Echo "999 対応拡張子に存在しないファイルです。アップロードできません。プログラムを終了します。"
+			Call exportExeResult("999 対応拡張子に存在しないファイルです。アップロードできません。プログラムを終了します。")
 			WScript.Quit
 		End If
 		'ファイルアップロード処理
@@ -102,7 +106,7 @@ For Each F In FSO.GetFolder(loadFileDir).Files
 		fileUploadResult = Replace(fileUploadResult, vbCrLf, vbLf)
 		fileUploadResult = Replace(fileUploadResult, vbCr, vbLf)
 		If Left(fileUploadResult, 4) = "999 " Then
-			WScript.Echo "999 ファイルアップロードに失敗しました。実行メッセージ（" & fileUploadResult & "）"
+			Call exportExeResult("999 ファイルアップロードに失敗しました。実行メッセージ（" & fileUploadResult & "）")
 			WScript.Quit
 		End If
 		uploadResultText = Split(fileUploadResult, vbLf)
@@ -141,7 +145,7 @@ postXML = encodeUTF8(postXML)
 
 'HTTPリクエスト
 RedmineRequestURI = RedmineIssueURI & "?key=" & RedmineAPIKey
-Set xmlHttp = CreateObject("MSXML2.ServerXMLHTTP")
+Set xmlHttp = CreateObject("MSXML2.XMLHTTP.3.0")
 xmlHttp.open "POST", RedmineRequestURI, False
 xmlHttp.setRequestHeader "Content-Type", "text/xml"
 xmlHttp.send postXML
@@ -149,42 +153,43 @@ xmlHttp.send postXML
 'ステータス処理
 If xmlHttp.status <> "201" Then
 	'リクエスト失敗時のエラーメッセージ
-	WScript.Echo "999 リクエストに失敗しました。プログラムを終了します。"
-	WScript.echo "RedmineIssueURI-------------------------------------------------------------"
-	WScript.Echo RedmineRequestURI
-	WScript.echo "POST XML START--------------------------------------------------------------"
-	WScript.Echo postXML
-	WScript.echo "POST XML END----------------------------------------------------------------"
-	WScript.Echo ""
-	
-	WScript.echo "RESPONSE CODE---------------------------------------------------------------"
-	WScript.Echo xmlHttp.status
-	WScript.echo "RESPONSE BODY START---------------------------------------------------------"
-	WScript.Echo xmlHttp.responseText
-	WScript.echo "RESPONSE BODY END-----------------------------------------------------------"
+	errorResultText = errorResultText &  "999 リクエストに失敗しました。プログラムを終了します。" & vbCrLf
+	errorResultText = errorResultText &  "RedmineIssueURI-------------------------------------------------------------" & vbCrLf
+	errorResultText = errorResultText &  RedmineRequestURI & vbCrLf
+	errorResultText = errorResultText &  "POST XML START--------------------------------------------------------------" & vbCrLf
+	errorResultText = errorResultText &  postXML & vbCrLf
+	errorResultText = errorResultText &  "POST XML END----------------------------------------------------------------" & vbCrLf
+	errorResultText = errorResultText &  "" & vbCrLf
+	errorResultText = errorResultText &  "RESPONSE CODE---------------------------------------------------------------" & vbCrLf
+	errorResultText = errorResultText &  xmlHttp.status & vbCrLf
+	errorResultText = errorResultText & "RESPONSE BODY START---------------------------------------------------------" & vbCrLf
+	errorResultText = errorResultText &  xmlHttp.responseText & vbCrLf
+	errorResultText = errorResultText &  "RESPONSE BODY END-----------------------------------------------------------" & vbCrLf
+	Call exportExeResult(encodeUTF8(errorResultText))
 Else
 	'リクエスト成功時はチケットIDを返却する
     Set xmlDoc = CreateObject("MSXML2.DOMDocument")
 	xmlDoc.loadXML xmlHttp.responseText
-	WScript.echo xmlDoc.getElementsByTagName("id")(0).nodeTypedValue
+	Call exportExeResult(xmlDoc.getElementsByTagName("id")(0).nodeTypedValue)
 End If
 '--------------------------------------------------------------------------------------------------
 '	メインプログラムここまで
 '--------------------------------------------------------------------------------------------------
 '環境設定■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
 Private Sub setEnvironment()
-	'引数チェック
-	If Wscript.Arguments.Count <> 1 Then
-		WScript.Echo "999 引数が不足しています。プログラムを終了します。"
-		WScript.Quit
-	End If
-	loadFileDir = WScript.Arguments(0)
-	
 	Set FSO = CreateObject("Scripting.FileSystemObject")
 	'パスを生成
 	PATH_MYSELF_DIR = 			FSO.GetParentFolderName(WScript.ScriptFullName)			'実行ディレクトリ
 	PATH_LIB_DIR = 				PATH_MYSELF_DIR & "\Lib"								'ライブラリディレクトリ
 	PATH_MIMEASCII_DICFILE = 	PATH_LIB_DIR & "\Dictionary_MIME_ASCII.csv"				'MIME-ASCII判定用CSV
+
+	'引数チェック
+	If Wscript.Arguments.Count <> 1 Then
+		Call exportExeResult("999 引数が不足しています。プログラムを終了します。")
+		WScript.Quit
+	End If
+	loadFileDir = WScript.Arguments(0)
+	
 	'辞書を設定
 	Call setDictionary
 	'システムファイル名の定義
@@ -206,13 +211,13 @@ Private Sub setDictionary()
 	
 	'ファイルの存在チェック
 	If FSO.FileExists(PATH_MIMEASCII_DICFILE) = False Then
-		WScript.Echo "999 MIME-ASCII判定用ファイルが存在しません。プログラムを終了します。"
+		Call exportExeResult("999 MIME-ASCII判定用ファイルが存在しません。プログラムを終了します。")
 		WScript.Quit
 	End If
 	
 	Set objFile = FSO.OpenTextFile(PATH_MIMEASCII_DICFILE, 1, False)
 	If err.number > 0 Then
-		WScript.Echo "999 MIME-ASCII判定用ファイルオープンに失敗しました。プログラムを終了します。"
+		Call exportExeResult("999 MIME-ASCII判定用ファイルオープンに失敗しました。プログラムを終了します。")
 		WScript.Quit
 	End If	
 	
@@ -308,7 +313,7 @@ Private Sub getIssueFile()
 			ADOStream2.Open		'StreamOpen
 			tmpFilename = loadFileDir & "\_" & Replace(KeyValue(0),":","_") & ".txt"
 			If FSO.FileExists(tmpFilename) = False Then
-				WScript.Echo "999 チケット発行用の参照ファイルが見つかりませんでした。プログラムを終了します。"
+				Call exportExeResult("999 チケット発行用の参照ファイルが見つかりませんでした。プログラムを終了します。")
 				WScript.Quit
 			End If
 			ADOStream2.LoadFromFile(tmpFilename)
@@ -329,7 +334,7 @@ Private Sub getIssueFile()
 				Case "_apikey"
 					RedmineAPIKey = tmpValue
 				Case Else
-					WScript.Echo "999 システムキーに不正な値がセットされています。プログラムを終了します。"
+					Call exportExeResult("999 システムキーに不正な値がセットされています。プログラムを終了します。")
 					WScript.Quit
 			End Select
 			setComplete = 1
@@ -405,3 +410,13 @@ Private Function encodeUTF8(argString)
 	Set ADOStream0 = Nothing
 	encodeUTF8 = resultString
 End Function
+
+'実行結果出力■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+Private Sub exportExeResult( argMessage )
+	Dim exportFile
+	WScript.Echo argMessage
+	'書き込みモードでオープン
+	Set exportFile = FSO.OpenTextFile( PATH_MYSELF_DIR & "\lastResult.txt", 2, True)
+	exportFile.WriteLine argMessage
+	exportFile.Close
+End Sub
